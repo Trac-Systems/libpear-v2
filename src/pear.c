@@ -100,11 +100,11 @@ pear__on_thread(void *data) {
 
   pear__bootstrap_start = uv_hrtime();
 
-  if (pear__needs_bootstrap) {
-    uv_loop_t loop;
-    err = uv_loop_init(&loop);
-    assert(err == 0);
+  uv_loop_t loop;
+  err = uv_loop_init(&loop);
+  assert(err == 0);
 
+  if (pear__needs_bootstrap) {
     js_platform_t *js;
     err = js_create_platform(&loop, NULL, &js);
     assert(err == 0);
@@ -117,15 +117,16 @@ pear__on_thread(void *data) {
 
     err = js_destroy_platform(js);
     assert(err == 0);
-
-    err = uv_run(&loop, UV_RUN_DEFAULT);
-    assert(err == 0);
-
-    err = uv_loop_close(&loop);
-    assert(err == 0);
   } else {
-    pear__on_bootstrap(&pear__bootstrap, 0);
+    err = appling_resolve(&loop, &pear__resolve, pear__path, &pear__platform, pear__on_resolve_after_bootstrap);
+    assert(err == 0);
   }
+
+  err = uv_run(&loop, UV_RUN_DEFAULT);
+  assert(err == 0);
+
+  err = uv_loop_close(&loop);
+  assert(err == 0);
 }
 
 static void
