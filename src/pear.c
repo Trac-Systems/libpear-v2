@@ -37,6 +37,50 @@ static appling_platform_t pear__platform = {
 static appling_app_t pear__app;
 static const char *pear__app_name;
 
+static bool
+pear__is_hex_id(const char *id, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    char c = id[i];
+    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+  }
+
+  return true;
+}
+
+static bool
+pear__is_z32_id(const char *id, size_t len) {
+  // z-base-32 alphabet used by hypercore IDs
+  static const char *alphabet = "ybndrfg8ejkmcpqxot1uwisza345h769";
+
+  for (size_t i = 0; i < len; i++) {
+    char c = id[i];
+    const char *p = alphabet;
+    bool found = false;
+
+    while (*p) {
+      if (*p == c) {
+        found = true;
+        break;
+      }
+      p++;
+    }
+
+    if (!found) return false;
+  }
+
+  return true;
+}
+
+static bool
+pear__is_valid_id(const char *id) {
+  size_t len = strlen(id);
+
+  if (len == 64) return pear__is_hex_id(id, len);
+  if (len == 52) return pear__is_z32_id(id, len);
+
+  return false;
+}
+
 static void
 pear__on_close(fx_t *fx, void *data) {
   int err;
@@ -262,8 +306,10 @@ pear_launch(int argc, char *argv[], pear_id_t id, const char *name) {
 
   memcpy(&pear__app.id, id, sizeof(appling_id_t));
 
-  if (argc > 1 && appling_parse(argv[1], &pear__app_link) == 0) {
-    // Parsed a valid pear:// or punch:// link.
+  if (argc > 1 &&
+      appling_parse(argv[1], &pear__app_link) == 0 &&
+      pear__is_valid_id(pear__app_link.id)) {
+    // Parsed a valid pear:// or punch:// link with a valid key.
   } else {
     // macOS launches can pass non-link argv (e.g. -psn_...). Fall back to app ID.
     memcpy(&pear__app_link.id, pear__app.id, sizeof(appling_id_t));
