@@ -262,12 +262,11 @@ pear_launch(int argc, char *argv[], pear_id_t id, const char *name) {
 
   memcpy(&pear__app.id, id, sizeof(appling_id_t));
 
-  if (argc > 1) {
-    err = appling_parse(argv[1], &pear__app_link);
-    assert(err == 0);
+  if (argc > 1 && appling_parse(argv[1], &pear__app_link) == 0) {
+    // Parsed a valid pear:// or punch:// link.
   } else {
+    // macOS launches can pass non-link argv (e.g. -psn_...). Fall back to app ID.
     memcpy(&pear__app_link.id, pear__app.id, sizeof(appling_id_t));
-
     pear__app_link.data[0] = '\0';
   }
 
