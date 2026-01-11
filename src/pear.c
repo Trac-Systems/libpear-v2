@@ -145,7 +145,9 @@ pear__on_resolve_after_bootstrap(appling_resolve_t *req, int status) {
 
 #if defined(APPLING_OS_WIN32)
   if (status != 0) {
-    pear__log_bootstrap("resolve", req->error);
+    char buf[64];
+    snprintf(buf, sizeof(buf), "status=%d", status);
+    pear__log_bootstrap("resolve", buf);
   }
 #endif
 
