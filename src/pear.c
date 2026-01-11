@@ -4,6 +4,7 @@
 #include <js.h>
 #include <log.h>
 #include <path.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -28,6 +29,34 @@ static appling_resolve_t pear__resolve;
 static appling_bootstrap_t pear__bootstrap;
 static uint64_t pear__bootstrap_start;
 static bool pear__needs_bootstrap;
+
+#if defined(APPLING_OS_WIN32)
+static void
+pear__log_bootstrap(const char *tag, const char *detail) {
+  if (pear__path == NULL || pear__path[0] == '\0') return;
+
+  appling_path_t log_path;
+  size_t log_path_len = sizeof(appling_path_t);
+  int err = path_join(
+    (const char *[]) {pear__path, "bootstrap.log", NULL},
+    log_path,
+    &log_path_len,
+    path_behavior_system
+  );
+  if (err != 0) return;
+
+  FILE *fp = fopen(log_path, "a");
+  if (!fp) return;
+
+  uint64_t ts = uv_hrtime();
+  fprintf(fp, "[%llu] %s: %s\n",
+    (unsigned long long) ts,
+    tag ? tag : "event",
+    detail ? detail : ""
+  );
+  fclose(fp);
+}
+#endif
 
 static appling_platform_t pear__platform = {
   .key = {0x6d, 0xd8, 0x97, 0x2d, 0xb0, 0x87, 0xad, 0x75, 0x41, 0x9a, 0x0b, 0x55, 0x4f, 0x6e, 0xa1, 0xfb, 0x22, 0x22, 0x3b, 0xa1, 0xf2, 0xc4, 0x84, 0x54, 0x41, 0xe0, 0x78, 0x8a, 0xf3, 0x0e, 0xf3, 0x7d},
@@ -114,6 +143,12 @@ static void
 pear__on_resolve_after_bootstrap(appling_resolve_t *req, int status) {
   int err;
 
+#if defined(APPLING_OS_WIN32)
+  if (status != 0) {
+    pear__log_bootstrap("resolve", req->error);
+  }
+#endif
+
   assert(status == 0);
 
   err = appling_preflight(&pear__platform, &pear__app_link);
@@ -126,6 +161,14 @@ pear__on_resolve_after_bootstrap(appling_resolve_t *req, int status) {
 static void
 pear__on_bootstrap(appling_bootstrap_t *req, int status) {
   int err;
+
+#if defined(APPLING_OS_WIN32)
+  if (status == 0) {
+    pear__log_bootstrap("bootstrap", "ok");
+  } else {
+    pear__log_bootstrap("bootstrap", req->error);
+  }
+#endif
 
   if (status == 0) {
     err = appling_resolve(req->loop, &pear__resolve, pear__path, &pear__platform, pear__on_resolve_after_bootstrap);
@@ -317,6 +360,10 @@ pear_launch(int argc, char *argv[], pear_id_t id, const char *name) {
   }
 
   pear__path = pear_path; // Default platform directory
+
+#if defined(APPLING_OS_WIN32)
+  pear__log_bootstrap("launch", pear__path);
+#endif
 
 #if defined(APPLING_OS_LINUX)
   if (getenv("SNAP_USER_COMMON") != NULL) {
