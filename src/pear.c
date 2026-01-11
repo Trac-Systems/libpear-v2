@@ -1,5 +1,8 @@
 #include <appling.h>
+#include <appling/os.h>
 #include <assert.h>
+#include <ctype.h>
+#include <stdlib.h>
 #include <fx.h>
 #include <js.h>
 #include <log.h>
@@ -28,6 +31,82 @@ static const char *pear__path;
 static appling_resolve_t pear__resolve;
 static appling_bootstrap_t pear__bootstrap;
 static uint64_t pear__bootstrap_start;
+
+static int
+pear__scandir_first_dir(const char *path, char *name, size_t name_len) {
+  uv_fs_t req;
+  int res = uv_fs_scandir(uv_default_loop(), &req, path, 0, NULL);
+  if (res < 0) return res;
+
+  uv_dirent_t ent;
+  while (uv_fs_scandir_next(&req, &ent) != UV_EOF) {
+    if (ent.type == UV_DIRENT_DIR) {
+      strncpy(name, ent.name, name_len - 1);
+      name[name_len - 1] = '\0';
+      uv_fs_req_cleanup(&req);
+      return 0;
+    }
+  }
+
+  uv_fs_req_cleanup(&req);
+  return UV_ENOENT;
+}
+
+static int
+pear__scandir_max_fork(const char *path, char *name, size_t name_len) {
+  uv_fs_t req;
+  int res = uv_fs_scandir(uv_default_loop(), &req, path, 0, NULL);
+  if (res < 0) return res;
+
+  long best = -1;
+  uv_dirent_t ent;
+  while (uv_fs_scandir_next(&req, &ent) != UV_EOF) {
+    if (ent.type != UV_DIRENT_DIR) continue;
+    const char *s = ent.name;
+    if (!isdigit((unsigned char) s[0])) continue;
+    char *end = NULL;
+    long val = strtol(s, &end, 10);
+    if (end == s || *end != '\0') continue;
+    if (val > best) {
+      best = val;
+      strncpy(name, ent.name, name_len - 1);
+      name[name_len - 1] = '\0';
+    }
+  }
+
+  uv_fs_req_cleanup(&req);
+  return (best >= 0) ? 0 : UV_ENOENT;
+}
+
+static int
+pear__resolve_platform_fallback(appling_path_t out_path, size_t *out_len) {
+  if (pear__path == NULL || pear__path[0] == '\0') return UV_EINVAL;
+
+  appling_path_t by_dkey;
+  size_t len = sizeof(appling_path_t);
+  path_join((const char *[]) {pear__path, "by-dkey", NULL}, by_dkey, &len, path_behavior_system);
+
+  char dkey[256];
+  int err = pear__scandir_first_dir(by_dkey, dkey, sizeof(dkey));
+  if (err < 0) return err;
+
+  appling_path_t dkey_path;
+  len = sizeof(appling_path_t);
+  path_join((const char *[]) {by_dkey, dkey, NULL}, dkey_path, &len, path_behavior_system);
+
+  char fork_dir[64];
+  err = pear__scandir_max_fork(dkey_path, fork_dir, sizeof(fork_dir));
+  if (err < 0) return err;
+
+  path_join(
+    (const char *[]) {dkey_path, fork_dir, "by-arch", APPLING_TARGET, NULL},
+    out_path,
+    out_len,
+    path_behavior_system
+  );
+
+  return 0;
+}
 static bool pear__needs_bootstrap;
 
 #if defined(APPLING_OS_WIN32)
@@ -148,6 +227,25 @@ pear__on_resolve_after_bootstrap(appling_resolve_t *req, int status) {
     char buf[64];
     snprintf(buf, sizeof(buf), "status=%d", status);
     pear__log_bootstrap("resolve", buf);
+  }
+#endif
+
+#if defined(APPLING_OS_WIN32)
+  if (status == UV_ENOENT) {
+    appling_path_t fallback;
+    size_t fallback_len = sizeof(appling_path_t);
+    if (pear__resolve_platform_fallback(fallback, &fallback_len) == 0) {
+      strncpy(pear__platform.path, fallback, sizeof(pear__platform.path) - 1);
+      pear__platform.path[sizeof(pear__platform.path) - 1] = '\0';
+      pear__log_bootstrap("resolve-fallback", pear__platform.path);
+
+      err = appling_preflight(&pear__platform, &pear__app_link);
+      assert(err == 0);
+
+      err = appling_unlock(req->loop, &pear__lock, pear__on_unlock_after_bootstrap);
+      assert(err == 0);
+      return;
+    }
   }
 #endif
 
