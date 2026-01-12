@@ -7,7 +7,7 @@ project(pear C CXX ASM)
 set(PEAR_RESTART_AFTER_BOOTSTRAP ON CACHE BOOL "Restart the appling once the Pear runtime has bootstrapped")
 
 if(NOT TARGET appling_static)
-  fetch_package("github:Trac-Systems/libappling-v2#8f1c8da")
+  fetch_package("github:Trac-Systems/libappling-v2#3aed072")
 endif()
 if(NOT TARGET fx_static)
   fetch_package("github:holepunchto/libfx")
