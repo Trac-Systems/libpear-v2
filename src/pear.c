@@ -107,6 +107,22 @@ pear__resolve_platform_fallback(appling_path_t out_path, size_t *out_len) {
 
   return 0;
 }
+
+#if defined(APPLING_OS_WIN32)
+static void
+pear__log_stat(const char *tag, const char *path) {
+  uv_fs_t req;
+  int rc = uv_fs_stat(uv_default_loop(), &req, path, NULL);
+  if (rc < 0) {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "missing(%d) %s", rc, path);
+    pear__log_bootstrap(tag, buf);
+  } else {
+    pear__log_bootstrap(tag, path);
+  }
+  uv_fs_req_cleanup(&req);
+}
+#endif
 static bool pear__needs_bootstrap;
 
 #if defined(APPLING_OS_WIN32)
@@ -238,6 +254,17 @@ pear__on_resolve_after_bootstrap(appling_resolve_t *req, int status) {
       strncpy(pear__platform.path, fallback, sizeof(pear__platform.path) - 1);
       pear__platform.path[sizeof(pear__platform.path) - 1] = '\0';
       pear__log_bootstrap("resolve-fallback", pear__platform.path);
+      pear__log_stat("platform-path", pear__platform.path);
+
+      appling_path_t launch_path;
+      size_t launch_len = sizeof(appling_path_t);
+      path_join(
+        (const char *[]) {pear__platform.path, "lib", appling_platform_entry, NULL},
+        launch_path,
+        &launch_len,
+        path_behavior_system
+      );
+      pear__log_stat("platform-entry", launch_path);
 
       err = appling_preflight(&pear__platform, &pear__app_link);
       assert(err == 0);
@@ -393,6 +420,13 @@ pear__on_unlock_before_bootstrap(appling_lock_t *req, int status) {
   assert(status == 0);
 
   err = appling_launch(&pear__platform, &pear__app, &pear__app_link, pear__app_name);
+#if defined(APPLING_OS_WIN32)
+  if (err < 0) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "launch=%d", err);
+    pear__log_bootstrap("launch-error", buf);
+  }
+#endif
   assert(err == 0);
 }
 
@@ -413,7 +447,18 @@ pear__on_resolve_before_bootstrap(appling_resolve_t *req, int status) {
   }
 #endif
 
-  if (status == 0 && appling_ready(&pear__platform, &pear__app_link) == 0) {
+  int ready = -1;
+  if (status == 0) ready = appling_ready(&pear__platform, &pear__app_link);
+
+#if defined(APPLING_OS_WIN32)
+  if (status == 0 && ready != 0) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "ready=%d", ready);
+    pear__log_bootstrap("ready", buf);
+  }
+#endif
+
+  if (status == 0 && ready >= 0) {
     err = appling_unlock(req->loop, &pear__lock, pear__on_unlock_before_bootstrap);
   } else {
     pear__needs_bootstrap = status != 0;
