@@ -15,6 +15,9 @@ endif()
 if(NOT TARGET js_static)
   fetch_package("github:holepunchto/libjs")
 endif()
+if(NOT TARGET log_static)
+  fetch_package("github:holepunchto/liblog")
+endif()
 
 add_library(pear OBJECT)
 
@@ -39,6 +42,7 @@ target_include_directories(
     $<TARGET_PROPERTY:appling,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:fx,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:js,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:log,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
 target_compile_definitions(
@@ -64,6 +68,7 @@ target_link_libraries(
     appling_static
     fx_static
     js_static
+    log_static
 )
 
 install(TARGETS pear_static)
