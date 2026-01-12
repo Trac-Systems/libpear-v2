@@ -109,6 +109,7 @@ pear__resolve_platform_fallback(appling_path_t out_path, size_t *out_len) {
 }
 
 #if defined(APPLING_OS_WIN32)
+static void pear__log_bootstrap(const char *tag, const char *detail);
 static void
 pear__log_stat(const char *tag, const char *path) {
   uv_fs_t req;
