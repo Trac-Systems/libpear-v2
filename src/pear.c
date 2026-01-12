@@ -522,6 +522,16 @@ pear_launch(int argc, char *argv[], pear_id_t id, const char *name) {
 
 #if defined(APPLING_OS_WIN32)
   pear__log_bootstrap("launch", pear__path);
+  appling_path_t log_path;
+  size_t log_path_len = sizeof(appling_path_t);
+  if (path_join(
+    (const char *[]) {pear__path, "bootstrap.log", NULL},
+    log_path,
+    &log_path_len,
+    path_behavior_system
+  ) == 0) {
+    uv_os_setenv("PEAR_BOOTSTRAP_LOG", log_path);
+  }
 #endif
 
 #if defined(APPLING_OS_LINUX)
