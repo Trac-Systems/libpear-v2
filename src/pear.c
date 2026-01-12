@@ -400,7 +400,20 @@ static void
 pear__on_resolve_before_bootstrap(appling_resolve_t *req, int status) {
   int err;
 
-  if (status == 0 && appling_ready(&pear__platform, &pear__app_link)) {
+#if defined(APPLING_OS_WIN32)
+  if (status == UV_ENOENT) {
+    appling_path_t fallback;
+    size_t fallback_len = sizeof(appling_path_t);
+    if (pear__resolve_platform_fallback(fallback, &fallback_len) == 0) {
+      strncpy(pear__platform.path, fallback, sizeof(pear__platform.path) - 1);
+      pear__platform.path[sizeof(pear__platform.path) - 1] = '\0';
+      pear__log_bootstrap("resolve-fallback", pear__platform.path);
+      status = 0;
+    }
+  }
+#endif
+
+  if (status == 0 && appling_ready(&pear__platform, &pear__app_link) == 0) {
     err = appling_unlock(req->loop, &pear__lock, pear__on_unlock_before_bootstrap);
   } else {
     pear__needs_bootstrap = status != 0;
