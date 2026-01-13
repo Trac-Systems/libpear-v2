@@ -462,7 +462,7 @@ pear__on_resolve_before_bootstrap(appling_resolve_t *req, int status) {
   if (status == 0 && ready >= 0) {
     err = appling_unlock(req->loop, &pear__lock, pear__on_unlock_before_bootstrap);
   } else {
-    pear__needs_bootstrap = status != 0;
+    pear__needs_bootstrap = status != 0 || ready < 0;
 
     fx_t *fx;
     err = fx_init(req->loop, &fx);
